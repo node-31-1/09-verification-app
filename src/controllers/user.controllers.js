@@ -3,6 +3,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
 const EmailCode = require('../models/EmailCode');
+const jwt = require('jsonwebtoken');
 
 const getAll = catchError(async(req, res) => {
     const results = await User.findAll();
@@ -81,6 +82,28 @@ const verifyCode = catchError(async(req, res) => {
     return res.json(user[1][0]);
 });
 
+const login = catchError(async(req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email }});
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    if (!user.isVerified) return res.status(401).json({ message: "Email no validado" });
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) return res.status(401).json({ message: "Invalid credentials" });
+
+    const token = jwt.sign(
+        { user }, 
+        process.env.TOKEN_SECRET,
+        { expiresIn: "1d" }
+    );
+
+    return res.json({ user, token });
+})
+
+const getLoggedUser = catchError(async(req, res) => {
+    const user = req.user;
+    return res.json(user);
+});
+
 module.exports = {
     getAll,
     create,
@@ -88,4 +111,6 @@ module.exports = {
     remove,
     update,
     verifyCode,
+    login,
+    getLoggedUser,
 }
